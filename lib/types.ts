@@ -92,7 +92,9 @@ export interface Score {
   observationId?: string
   sessionId?: string
   name: string
-  value: number
+  // For CATEGORICAL scores: value may be optional, stringValue is primary
+  // For NUMERIC/BOOLEAN scores: value is the primary field
+  value?: number
   stringValue?: string
   dataType?: "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
   comment?: string | null

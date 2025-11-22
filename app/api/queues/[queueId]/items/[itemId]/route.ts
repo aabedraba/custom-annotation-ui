@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { langfuseGet, langfusePatch } from "@/lib/langfuse-client"
+import { langfuseApi } from "@/lib/langfuse-client"
 import type { QueueItem } from "@/lib/types"
 
 export async function GET(
@@ -9,9 +9,8 @@ export async function GET(
   try {
     const { queueId, itemId } = await params
 
-    const item = await langfuseGet<QueueItem>(
-      `/api/public/annotation-queues/${queueId}/items/${itemId}`
-    )
+    // Use Langfuse SDK to fetch queue item
+    const item = await langfuseApi.annotationQueuesGetQueueItem(queueId, itemId)
 
     return NextResponse.json(item)
   } catch (error) {
@@ -31,10 +30,8 @@ export async function PATCH(
     const { queueId, itemId } = await params
     const body = await request.json()
 
-    const item = await langfusePatch<QueueItem>(
-      `/api/public/annotation-queues/${queueId}/items/${itemId}`,
-      body
-    )
+    // Use Langfuse SDK to update queue item
+    const item = await langfuseApi.annotationQueuesUpdateQueueItem(queueId, itemId, body)
 
     return NextResponse.json(item)
   } catch (error) {

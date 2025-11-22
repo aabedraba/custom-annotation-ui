@@ -1,23 +1,25 @@
 import { NextResponse } from "next/server"
-import { langfuseGet } from "@/lib/langfuse-client"
-import type { PaginatedResponse, AnnotationQueue } from "@/lib/types"
+import { langfuseApi } from "@/lib/langfuse-client"
+import type { AnnotationQueue } from "@/lib/types"
 
 export async function GET() {
   try {
-    const response = await langfuseGet<PaginatedResponse<AnnotationQueue>>(
-      "/api/public/annotation-queues",
-      { page: 1, limit: 100 }
-    )
+    // Use Langfuse SDK to fetch annotation queues
+    const response = await langfuseApi.annotationQueuesListQueues({
+      page: 1,
+      limit: 100,
+    })
 
     // Fetch items for each queue to calculate counts
     const queuesWithCounts = await Promise.all(
       response.data.map(async (queue) => {
         try {
-          // Fetch items directly from Langfuse API instead of calling our own API route
-          const itemsResponse = await langfuseGet<PaginatedResponse<any>>(
-            `/api/public/annotation-queues/${queue.id}/items`,
-            { page: 1, limit: 100 }
-          )
+          // Use SDK to fetch queue items
+          const itemsResponse = await langfuseApi.annotationQueuesListQueueItems({
+            queueId: queue.id,
+            page: 1,
+            limit: 100,
+          })
 
           return {
             ...queue,

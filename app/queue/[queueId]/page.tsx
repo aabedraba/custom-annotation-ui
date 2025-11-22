@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { api } from "@/lib/api"
 import { submitScore, flushScores } from "@/lib/langfuse-web"
-import type { QueueItem, ChatMessage, ScoreConfig, AnnotationQueue } from "@/lib/types"
+import type { QueueItem, ChatMessage, ScoreConfig, AnnotationQueue, Score } from "@/lib/types"
 import { ChatBubble } from "@/components/annotation/chat-bubble"
 import { ScorePanel } from "@/components/annotation/score-panel"
 import { Button } from "@/components/ui/button"
@@ -57,7 +57,7 @@ export default function AnnotationInterface() {
 
   const [items, setItems] = useState<QueueItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentData, setCurrentData] = useState<{ messages: ChatMessage[]; context?: any } | null>(null)
+  const [currentData, setCurrentData] = useState<{ messages: ChatMessage[]; scores?: Score[]; context?: any } | null>(null)
   const [loadingItem, setLoadingItem] = useState(false)
   const [queue, setQueue] = useState<AnnotationQueue | null>(null)
   const [scoreConfigs, setScoreConfigs] = useState<ScoreConfig[]>([])
@@ -105,7 +105,9 @@ export default function AnnotationInterface() {
       }
     }
     fetchQueueData()
-  }, [queueId, router, searchParams])
+    // Only run on mount or when queueId changes - searchParams and router are stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueId])
 
   // Fetch details for the current item
   useEffect(() => {
@@ -121,6 +123,7 @@ export default function AnnotationInterface() {
     const fetchItemDetails = async () => {
       setLoadingItem(true)
       const messages: ChatMessage[] = []
+      let scores: Score[] = []
 
       try {
         if (item.objectType === "SESSION") {
@@ -129,12 +132,20 @@ export default function AnnotationInterface() {
             // Flatten all traces into messages
             session.traces.forEach((trace) => {
               messages.push(...normalizeTraceMessages(trace))
+              // Collect scores from all traces in the session
+              if (trace.scores) {
+                scores.push(...trace.scores)
+              }
             })
           }
         } else if (item.objectType === "TRACE") {
           const trace = await api.getTrace(item.objectId)
           if (trace) {
             messages.push(...normalizeTraceMessages(trace))
+            // Extract scores from the trace
+            if (trace.scores) {
+              scores = trace.scores
+            }
           }
         }
 
@@ -144,7 +155,7 @@ export default function AnnotationInterface() {
           return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         })
 
-        setCurrentData({ messages })
+        setCurrentData({ messages, scores })
       } catch (error) {
         console.error("Failed to fetch item details", error)
       } finally {
@@ -153,8 +164,7 @@ export default function AnnotationInterface() {
     }
 
     fetchItemDetails()
-    // Only depend on currentIndex - items array is used for lookup only
-    // We don't want to refetch when item properties (like status) change
+    // Depend only on currentIndex, which already recomputes when items/searchParams change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex])
 
@@ -186,16 +196,39 @@ export default function AnnotationInterface() {
 
     try {
       // Queue all scores (doesn't send yet)
-      scores.forEach(score =>
+      scores.forEach(score => {
+        // Find the config for this score to get dataType and stringValue
+        const config = scoreConfigs.find(c => c.id === score.configId)
+
+        // For categorical scores, find the label (stringValue) for the selected value
+        let stringValue: string | undefined
+        if (config?.dataType === "CATEGORICAL") {
+          if (config.categories) {
+            const category = config.categories.find(cat => cat.value === score.value)
+            stringValue = category?.label
+
+            if (!stringValue) {
+              console.error(`No label found for categorical score "${score.name}" with value ${score.value}`)
+              throw new Error(`Invalid category value for "${score.name}"`)
+            }
+          } else {
+            console.error(`No categories defined for categorical score "${score.name}"`)
+            throw new Error(`Configuration error for "${score.name}"`)
+          }
+        }
+
         submitScore({
           name: score.name,
           value: score.value,
           comment,
           configId: score.configId,
+          queueId: queueId,
+          dataType: config?.dataType,
+          stringValue,
           ...(currentItem.objectType === "TRACE" && { traceId: currentItem.objectId }),
           ...(currentItem.objectType === "SESSION" && { sessionId: currentItem.objectId }),
         })
-      )
+      })
 
       // Flush all scores at once (single network request)
       await flushScores()
@@ -334,6 +367,7 @@ export default function AnnotationInterface() {
             isSubmitting={isSubmitting}
             isCompleted={items[currentIndex]?.status === "COMPLETED"}
             completedAt={items[currentIndex]?.completedAt}
+            existingScores={currentData?.scores}
           />
 
           <div className="mt-8 space-y-4">

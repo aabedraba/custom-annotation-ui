@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { langfuseGet } from "@/lib/langfuse-client"
+import { langfuseApi } from "@/lib/langfuse-client"
 import type { Session } from "@/lib/types"
 
 export async function GET(
@@ -9,9 +9,8 @@ export async function GET(
   try {
     const { sessionId } = await params
 
-    const session = await langfuseGet<Session>(
-      `/api/public/sessions/${sessionId}`
-    )
+    // Use Langfuse SDK to fetch session
+    const session = await langfuseApi.sessionsGet(sessionId)
 
     return NextResponse.json(session)
   } catch (error) {

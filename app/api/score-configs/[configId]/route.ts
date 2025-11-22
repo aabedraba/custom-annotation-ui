@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { langfuseGet } from "@/lib/langfuse-client"
+import { langfuseApi } from "@/lib/langfuse-client"
 import type { ScoreConfig } from "@/lib/types"
 
 export async function GET(
@@ -8,9 +8,9 @@ export async function GET(
 ) {
   try {
     const { configId } = await params
-    const scoreConfig = await langfuseGet<ScoreConfig>(
-      `/api/public/score-configs/${configId}`
-    )
+    
+    // Use Langfuse SDK to fetch score config
+    const scoreConfig = await langfuseApi.scoreConfigsGetById(configId)
 
     return NextResponse.json(scoreConfig)
   } catch (error) {

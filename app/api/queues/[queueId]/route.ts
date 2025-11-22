@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { langfuseGet } from "@/lib/langfuse-client"
+import { langfuseApi } from "@/lib/langfuse-client"
 import type { AnnotationQueue, PaginatedResponse, QueueItem } from "@/lib/types"
 
 export async function GET(
@@ -9,15 +9,15 @@ export async function GET(
   try {
     const { queueId } = await params
 
-    const queue = await langfuseGet<AnnotationQueue>(
-      `/api/public/annotation-queues/${queueId}`
-    )
+    // Use Langfuse SDK to fetch queue
+    const queue = await langfuseApi.annotationQueuesGetQueue(queueId)
 
     // Fetch items to calculate counts
-    const itemsResponse = await langfuseGet<PaginatedResponse<QueueItem>>(
-      `/api/public/annotation-queues/${queueId}/items`,
-      { page: 1, limit: 100 }
-    )
+    const itemsResponse = await langfuseApi.annotationQueuesListQueueItems({
+      queueId,
+      page: 1,
+      limit: 100,
+    })
 
     const queueWithCounts = {
       ...queue,

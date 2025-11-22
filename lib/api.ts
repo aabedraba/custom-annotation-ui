@@ -27,8 +27,14 @@ function getBaseUrl(): string {
 }
 
 /**
- * Client-side API wrapper that calls our Next.js API routes
- * These routes handle Langfuse authentication server-side
+ * Client-side API wrapper that calls our Next.js API routes.
+ * 
+ * This layer keeps secret keys secure by routing all Langfuse API calls
+ * through our Next.js API routes (app/api/route.ts files), which use the
+ * Langfuse SDK server-side with full authentication.
+ * 
+ * IMPORTANT: This file is imported by browser components and should never
+ * contain secret keys or make direct calls to the Langfuse API.
  */
 export const api = {
   /**

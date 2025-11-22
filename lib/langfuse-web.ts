@@ -17,25 +17,58 @@ export async function submitScore(params: {
   sessionId?: string
   name: string
   value: number
+  stringValue?: string
   comment?: string
   configId?: string
   dataType?: "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
   queueId?: string
 }) {
   try {
-    // Note: LangfuseWeb.score() doesn't directly support sessionId
-    // For session-level scores, the UI should pass the sessionId as metadata
-    // or use the session's first trace ID
+    // Create idempotency key to prevent duplicate scores
+    // Using the pattern: <objectId>-<scoreName> ensures we update the same score
+    // when re-scoring the same item
+    const objectId = params.traceId || params.sessionId || params.observationId
+    const idempotencyKey = objectId && params.name ? `${objectId}-${params.name}` : undefined
+
+    // Handle value based on data type per Langfuse API requirements:
+    // - CATEGORICAL: Must submit the string label as the value
+    // - NUMERIC: Submit the numeric value
+    // - BOOLEAN: Submit 0 or 1 as numeric value
+    const scoreValue = params.dataType === "CATEGORICAL" && params.stringValue
+      ? params.stringValue
+      : params.value
+
     const scorePayload: any = {
       name: params.name,
-      value: params.value,
+      value: scoreValue,
       configId: params.configId,
     }
 
+    // Add idempotency key to update existing scores instead of creating duplicates
+    if (idempotencyKey) scorePayload.id = idempotencyKey
+
     // Add optional fields only if they exist
+    // Note: Provide exactly one of: traceId, sessionId, or observationId (with traceId)
     if (params.traceId) scorePayload.traceId = params.traceId
+    if (params.sessionId) scorePayload.sessionId = params.sessionId
     if (params.observationId) scorePayload.observationId = params.observationId
     if (params.comment) scorePayload.comment = params.comment
+    if (params.queueId) scorePayload.queueId = params.queueId
+    if (params.dataType) scorePayload.dataType = params.dataType
+    // Note: For categorical scores, stringValue is not needed since value is already the string
+
+    // Debug logging
+    console.log("Submitting score to Langfuse:", {
+      name: params.name,
+      value: params.value,
+      dataType: params.dataType,
+      stringValue: params.stringValue,
+      configId: params.configId,
+      queueId: params.queueId,
+      traceId: params.traceId,
+      sessionId: params.sessionId,
+      fullPayload: scorePayload
+    })
 
     // Queue the score (don't flush yet - caller will flush all at once)
     langfuseWeb.score(scorePayload)

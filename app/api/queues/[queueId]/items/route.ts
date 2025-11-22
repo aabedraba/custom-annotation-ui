@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { langfuseGet } from "@/lib/langfuse-client"
+import { langfuseApi } from "@/lib/langfuse-client"
 import type { PaginatedResponse, QueueItem } from "@/lib/types"
 
 export async function GET(
@@ -11,14 +11,13 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status") as "PENDING" | "COMPLETED" | null
 
-    const response = await langfuseGet<PaginatedResponse<QueueItem>>(
-      `/api/public/annotation-queues/${queueId}/items`,
-      {
-        page: 1,
-        limit: 100,
-        ...(status && { status })
-      }
-    )
+    // Use Langfuse SDK to fetch queue items
+    const response = await langfuseApi.annotationQueuesListQueueItems({
+      queueId,
+      page: 1,
+      limit: 100,
+      ...(status && { status })
+    })
 
     return NextResponse.json(response.data)
   } catch (error) {

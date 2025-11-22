@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { langfuseGet } from "@/lib/langfuse-client"
+import { langfuseApi } from "@/lib/langfuse-client"
 import type { Trace } from "@/lib/types"
 
 export async function GET(
@@ -9,9 +9,8 @@ export async function GET(
   try {
     const { traceId } = await params
 
-    const trace = await langfuseGet<Trace>(
-      `/api/public/traces/${traceId}`
-    )
+    // Use Langfuse SDK to fetch trace
+    const trace = await langfuseApi.traceGet(traceId)
 
     return NextResponse.json(trace)
   } catch (error) {
